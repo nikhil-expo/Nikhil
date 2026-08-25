@@ -1,0 +1,680 @@
+import bpy
+
+# -------------------------------------------------
+# INTERIOR COLORS
+# -------------------------------------------------
+PURE_WHITE   = (1.00, 1.00, 1.00)
+WARM_WHITE   = (0.98, 0.96, 0.93)
+IVORY        = (0.96, 0.93, 0.88)
+CREAM        = (0.95, 0.89, 0.79)
+BEIGE        = (0.93, 0.88, 0.78)
+TAUPE        = (0.84, 0.78, 0.66)
+GREIGE       = (0.78, 0.76, 0.72)
+LIGHT_GREY   = (0.85, 0.85, 0.85)
+MEDIUM_GREY  = (0.65, 0.65, 0.65)
+CHARCOAL     = (0.25, 0.25, 0.27)
+SAGE_GREEN   = (0.66, 0.71, 0.63)
+OLIVE        = (0.49, 0.52, 0.38)
+FOREST_GREEN = (0.16, 0.29, 0.21)
+DUSTY_BLUE   = (0.51, 0.60, 0.66)
+NAVY         = (0.15, 0.23, 0.32)
+TERRACOTTA   = (0.72, 0.40, 0.29)
+RUST         = (0.62, 0.31, 0.21)
+MUSTARD      = (0.77, 0.60, 0.23)
+BLUSH        = (0.85, 0.71, 0.68)
+MOCHA        = (0.48, 0.35, 0.27)
+WALNUT       = (0.35, 0.22, 0.15)
+TEAK         = (0.55, 0.35, 0.21)
+
+# Clear the default scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete(use_global=False)
+# -------------------------------------------------
+# SETTINGS
+# -------------------------------------------------
+WALL_HEIGHT = 2.70
+WALL_THICKNESS = 0.15
+# Room dimensions in metres
+ROOM1_LENGTH = 3.83
+ROOM1_WIDTH = 3.77
+ROOM2_LENGTH = 2.95
+ROOM2_WIDTH = 3.48
+# Gap between the two rooms
+#ROOM_GAP = 0.15
+x1 = 0
+
+# -------------------------------------------------
+# CREATE BOX FUNCTION
+# -------------------------------------------------
+def create_box(name, location, dimensions, color_name=None, color=None):
+   bpy.ops.mesh.primitive_cube_add(location=location)
+   obj = bpy.context.object
+   obj.name = name
+   obj.dimensions = dimensions
+   bpy.ops.object.transform_apply(
+       location=False,
+       rotation=False,
+       scale=True
+   )
+   if color is not None:
+       # Object viewport color
+       obj.color = (
+           color[0],
+           color[1],
+           color[2],
+           1.0
+       )
+       # Create / get material
+       material = bpy.data.materials.get(color_name)
+       if material is None:
+           material = bpy.data.materials.new(color_name)
+       material.use_nodes = True
+       # Set material color
+       material.diffuse_color = (
+           color[0],
+           color[1],
+           color[2],
+           1.0
+       )
+       # Set Principled BSDF color
+       nodes = material.node_tree.nodes
+       bsdf = nodes.get("Principled BSDF")
+       if bsdf is not None:
+           bsdf.inputs["Base Color"].default_value = (
+               color[0],
+               color[1],
+               color[2],
+               1.0
+           )
+       # Assign material
+       obj.data.materials.clear()
+       obj.data.materials.append(material)
+   return obj
+
+
+# -------------------------------------------------
+# FLOOR
+# -------------------------------------------------
+total_width = ROOM1_LENGTH #+ ROOM_GAP + ROOM2_LENGTH
+max_depth = ROOM1_WIDTH #max(ROOM1_WIDTH, ROOM2_WIDTH)
+create_box(
+   "Floor",
+   (0, 0, -0.05),
+   (total_width, max_depth, 0.10)
+)
+# -------------------------------------------------
+# ROOM 1 BACK WALL WITH DOOR OPENING
+# -------------------------------------------------
+x1 = 0
+DOOR_WIDTH = 0.80
+DOOR_HEIGHT = 2.10
+# Distance from LEFT edge of Room 1 to door
+DOOR_FROM_LEFT = 2.80
+# Back wall position
+back_y = ROOM1_WIDTH / 2
+# -------------------------------------------------
+# CREATE COMPLETE BACK WALL
+# -------------------------------------------------
+create_box(
+    "Room1_BackWall",
+    (x1, back_y, WALL_HEIGHT / 2),
+    (ROOM1_LENGTH, WALL_THICKNESS, WALL_HEIGHT),
+    "Navy",
+    NAVY 
+)
+# -------------------------------------------------
+# CREATE DOOR CUTTER
+# -------------------------------------------------
+door_x = (
+    x1
+    - ROOM1_LENGTH / 2
+    + DOOR_FROM_LEFT
+    + DOOR_WIDTH / 2
+)
+door_y = back_y
+door_z = DOOR_HEIGHT / 2
+create_box(
+    "Door_Cutter",
+    (door_x, door_y, door_z),
+    (
+        DOOR_WIDTH,
+        WALL_THICKNESS + 0.20,
+        DOOR_HEIGHT
+    )
+)
+# -------------------------------------------------
+# BOOLEAN CUT
+# -------------------------------------------------
+wall = bpy.data.objects["Room1_BackWall"]
+cutter = bpy.data.objects["Door_Cutter"]
+bpy.context.view_layer.objects.active = wall
+modifier = wall.modifiers.new(
+    name="Door_Opening",
+    type='BOOLEAN'
+)
+modifier.operation = 'DIFFERENCE'
+modifier.solver = 'EXACT'
+modifier.object = cutter
+bpy.ops.object.modifier_apply(
+    modifier=modifier.name
+)
+# -------------------------------------------------
+# DELETE CUTTER
+# -------------------------------------------------
+bpy.data.objects.remove(
+    cutter,
+    do_unlink=True
+)
+ 
+# Front wall
+"""create_box(
+   "Room1_FrontWall",
+   (x1, -ROOM1_WIDTH / 2, WALL_HEIGHT / 2),
+   (ROOM1_LENGTH, WALL_THICKNESS, WALL_HEIGHT)
+)"""
+# Left wall
+"""create_box(
+   "Room1_LeftWall",
+   (-ROOM1_LENGTH / 2, 0, WALL_HEIGHT / 2),
+   (WALL_THICKNESS, ROOM1_WIDTH, WALL_HEIGHT),
+    "Pure White",
+    NAVY
+)"""
+# Right wall
+create_box(
+   "Room1_RightWall",
+   (ROOM1_LENGTH / 2, 0, WALL_HEIGHT / 2),
+   (WALL_THICKNESS, ROOM1_WIDTH, WALL_HEIGHT),
+    "Pure White",
+    PURE_WHITE
+)
+
+## CupBoards
+"""CupBoard_FROM_LEFT = 2.60
+CupBoard_Depth = 0.50
+CupBoard_Height = 2.70
+create_box(
+   "Ceiling",
+   (x1 - ROOM1_LENGTH / 2 + CupBoard_FROM_LEFT / 2, back_y - (CupBoard_Depth / 2) , CupBoard_Height / 2),
+   (CupBoard_FROM_LEFT , CupBoard_Depth, CupBoard_Height),
+    "Pure White",
+    PURE_WHITE
+)"""
+
+# ============================================================
+# CUPBOARD
+# 3.00m Wide × 0.60m Deep × 2.70m High
+# 4 main doors + 3 upper doors
+# Two-colour design: Ivory White + Terracotta
+# ============================================================
+# -----------------------------
+# CUPBOARD PARAMETERS
+# -----------------------------
+CupBoard_WIDTH = 2.60
+CupBoard_DEPTH = 0.60
+CupBoard_HEIGHT = 2.70
+CupBoard_FROM_LEFT = 2.60
+# Bottom plinth
+CupBoard_PLINTH = 0.10
+# Upper/loft section
+CupBoard_UPPER_HEIGHT = 0.45
+# Main cupboard height
+CupBoard_MAIN_HEIGHT = (
+    CupBoard_HEIGHT
+    - CupBoard_PLINTH
+    - CupBoard_UPPER_HEIGHT
+)
+# Door thickness / front projection
+CupBoard_DOOR_THICKNESS = 0.018
+# Gap between doors
+CupBoard_GAP = 0.008
+# -----------------------------
+# COLOURS
+# -----------------------------
+CUPBOARD_WHITE = (0.90, 0.88, 0.82)
+CUPBOARD_TERRACOTTA = (0.55, 0.30, 0.24)
+CUPBOARD_HANDLE = (0.20, 0.07, 0.025)
+# ============================================================
+# CUPBOARD POSITION
+# ============================================================
+# Back wall is assumed to be at +ROOM1_WIDTH / 2.
+# If your back wall uses another Y position,
+# change only this line.
+back_y = ROOM1_WIDTH / 2
+# X position of cupboard centre
+cupboard_x = (x1 - ROOM1_LENGTH / 2 + CupBoard_FROM_LEFT / 2)
+# Y position of cupboard centre
+cupboard_y = back_y - CupBoard_DEPTH / 2
+# ============================================================
+# CUPBOARD MAIN BODY
+# ============================================================
+create_box(
+    "CupBoard_Body",
+    (cupboard_x, cupboard_y, CupBoard_HEIGHT / 2),
+    (
+        CupBoard_WIDTH,
+        CupBoard_DEPTH,
+        CupBoard_HEIGHT
+    ),
+    "Cupboard Ivory",
+    CUPBOARD_WHITE
+)
+# ============================================================
+# PLINTH / BOTTOM
+# ============================================================
+create_box(
+    "CupBoard_Plinth",
+    (
+        cupboard_x,
+        cupboard_y,
+        CupBoard_PLINTH / 2
+    ),
+    (
+        CupBoard_WIDTH,
+        CupBoard_DEPTH,
+        CupBoard_PLINTH
+    ),
+    "Cupboard Terracotta Plinth",
+    CUPBOARD_TERRACOTTA
+)
+# ============================================================
+# 4 MAIN DOORS
+# ============================================================
+MAIN_DOOR_COUNT = 4
+MAIN_DOOR_WIDTH = (
+    CupBoard_WIDTH
+    - (MAIN_DOOR_COUNT - 1) * CupBoard_GAP
+) / MAIN_DOOR_COUNT
+main_door_z = (
+    CupBoard_PLINTH
+    + CupBoard_MAIN_HEIGHT / 2
+)
+# Front face of cupboard
+front_y = (
+    back_y
+    - CupBoard_DEPTH
+    - CupBoard_DOOR_THICKNESS / 2
+)
+for i in range(MAIN_DOOR_COUNT):
+    door_x = (
+        x1 - ROOM1_LENGTH / 2 
+        + MAIN_DOOR_WIDTH / 2
+        + i * (MAIN_DOOR_WIDTH + CupBoard_GAP)
+    )
+    # ----------------------------------------
+    # Upper part = Ivory
+    # ----------------------------------------
+    upper_panel_height = (
+        CupBoard_MAIN_HEIGHT * 0.58
+    )
+    create_box(
+        f"CupBoard_MainDoor_{i+1}_White",
+        (
+            door_x,
+            front_y,
+            main_door_z
+            + (
+                CupBoard_MAIN_HEIGHT * 0.21
+            )
+        ),
+        (
+            MAIN_DOOR_WIDTH,
+            CupBoard_DOOR_THICKNESS,
+            upper_panel_height
+        ),
+        "Cupboard Ivory",
+        CUPBOARD_WHITE
+    )
+    # ----------------------------------------
+    # Lower part = Terracotta
+    # ----------------------------------------
+    lower_panel_height = (
+        CupBoard_MAIN_HEIGHT * 0.42
+    )
+    create_box(
+        f"CupBoard_MainDoor_{i+1}_Terracotta",
+        (
+            door_x,
+            front_y - 0.001,
+            CupBoard_PLINTH
+            + lower_panel_height / 2
+        ),
+        (
+            MAIN_DOOR_WIDTH,
+            CupBoard_DOOR_THICKNESS,
+            lower_panel_height
+        ),
+        "Cupboard Terracotta",
+        CUPBOARD_TERRACOTTA
+    )
+# ============================================================
+# 3 UPPER / LOFT DOORS
+# ============================================================
+UPPER_DOOR_COUNT = 3
+UPPER_DOOR_WIDTH = (
+    CupBoard_WIDTH
+    - (UPPER_DOOR_COUNT - 1) * CupBoard_GAP
+) / UPPER_DOOR_COUNT
+upper_door_z = (
+    CupBoard_PLINTH
+    + CupBoard_MAIN_HEIGHT
+    + CupBoard_UPPER_HEIGHT / 2
+)
+for i in range(UPPER_DOOR_COUNT):
+    door_x = (
+        x1
+        - ROOM1_LENGTH / 2
+        + UPPER_DOOR_WIDTH / 2
+        + i * (UPPER_DOOR_WIDTH + CupBoard_GAP)
+    )
+    create_box(
+        f"CupBoard_UpperDoor_{i+1}",
+        (
+            door_x,
+            front_y,
+            upper_door_z
+        ),
+        (
+            UPPER_DOOR_WIDTH,
+            CupBoard_DOOR_THICKNESS,
+            CupBoard_UPPER_HEIGHT
+        ),
+        "Cupboard Ivory",
+        CUPBOARD_WHITE
+    )
+# ============================================================
+# HANDLES - TRUE RECESSED CUTS IN THE DOORS
+# ============================================================
+HANDLE_WIDTH = 0.045
+HANDLE_DEPTH = 0.040
+HANDLE_HEIGHT = 0.62
+# Bottom of handle from floor
+HANDLE_BOTTOM = 0.85
+# Handle is positioned near the joining edge of each door
+HANDLE_EDGE_GAP = 0.035
+# ------------------------------------------------------------
+# FUNCTION: CREATE RECESSED HANDLE CUTTER
+# ------------------------------------------------------------
+def create_handle_cut(
+   door_obj,
+   handle_x,
+   handle_bottom,
+   handle_height,
+   handle_name
+):
+   # Vertical rectangular part
+   bpy.ops.mesh.primitive_cube_add(
+       location=(
+           handle_x,
+           front_y - 0.002,
+           handle_bottom + handle_height / 2
+       )
+   )
+   cutter = bpy.context.object
+   cutter.name = handle_name + "_Cutter"
+   cutter.dimensions = (
+       HANDLE_WIDTH,
+       HANDLE_DEPTH,
+       handle_height
+   )
+   bpy.ops.object.transform_apply(
+       location=False,
+       rotation=False,
+       scale=True
+   )
+   # --------------------------------------------------------
+   # Rounded top of the handle
+   # --------------------------------------------------------
+   bpy.ops.mesh.primitive_cylinder_add(
+       vertices=32,
+       radius=HANDLE_WIDTH / 2,
+       depth=HANDLE_DEPTH,
+       location=(
+           handle_x,
+           front_y - 0.002,
+           handle_bottom + handle_height
+       ),
+       rotation=(math.radians(90), 0, 0)
+   )
+   round_cutter = bpy.context.object
+   round_cutter.name = handle_name + "_Round"
+   # --------------------------------------------------------
+   # Join rectangular + round cutters
+   # --------------------------------------------------------
+   bpy.ops.object.select_all(action='DESELECT')
+   cutter.select_set(True)
+   round_cutter.select_set(True)
+   bpy.context.view_layer.objects.active = cutter
+   bpy.ops.object.join()
+   cutter = bpy.context.object
+   # --------------------------------------------------------
+   # Boolean Difference
+   # --------------------------------------------------------
+   bpy.context.view_layer.objects.active = door_obj
+   modifier = door_obj.modifiers.new(
+       name=handle_name + "_Recess",
+       type='BOOLEAN'
+   )
+   modifier.operation = 'DIFFERENCE'
+   modifier.solver = 'EXACT'
+   modifier.object = cutter
+   bpy.context.view_layer.objects.active = door_obj
+   bpy.ops.object.modifier_apply(
+       modifier=modifier.name
+   )
+   # Delete cutter after Boolean
+   bpy.data.objects.remove(
+       cutter,
+       do_unlink=True
+   )
+# ============================================================
+# SHARED RECESSED HANDLES
+# 4 DOORS = 3 SHARED HANDLES
+# Each handle is CUT INTO BOTH ADJACENT DOORS
+# ============================================================
+HANDLE_TOTAL_WIDTH = 0.050
+HANDLE_DEPTH = 0.045
+HANDLE_HEIGHT = 0.62
+# Bottom of handle from floor
+HANDLE_BOTTOM = 0.82
+# Half of the handle cut goes into each door
+HANDLE_HALF_WIDTH = HANDLE_TOTAL_WIDTH / 2
+# ============================================================
+# CREATE ONE HALF OF A SHARED HANDLE CUT
+# ============================================================
+def cut_handle_into_door(
+   door_obj,
+   handle_x,
+   handle_name,
+   side
+):
+   if door_obj is None:
+       return
+   # --------------------------------------------------------
+   # RECTANGULAR PART OF CUT
+   # --------------------------------------------------------
+   bpy.ops.mesh.primitive_cube_add(
+       location=(
+           handle_x,
+           front_y - 0.015,
+           HANDLE_BOTTOM
+           + (HANDLE_HEIGHT - HANDLE_HALF_WIDTH) / 2
+       )
+   )
+   cutter = bpy.context.object
+   cutter.name = handle_name + "_Cutter"
+   cutter.dimensions = (
+       HANDLE_HALF_WIDTH,
+       HANDLE_DEPTH,
+       HANDLE_HEIGHT - HANDLE_HALF_WIDTH
+   )
+   bpy.ops.object.transform_apply(
+       location=False,
+       rotation=False,
+       scale=True
+   )
+   # --------------------------------------------------------
+   # ROUNDED TOP
+   # --------------------------------------------------------
+   bpy.ops.mesh.primitive_cylinder_add(
+       vertices=32,
+       radius=HANDLE_HALF_WIDTH / 2,
+       depth=HANDLE_DEPTH,
+       location=(
+           handle_x,
+           front_y - 0.015,
+           HANDLE_BOTTOM
+           + HANDLE_HEIGHT
+           - HANDLE_HALF_WIDTH / 2
+       ),
+       rotation=(math.radians(90), 0, 0)
+   )
+   round_part = bpy.context.object
+   round_part.name = handle_name + "_Round"
+   # --------------------------------------------------------
+   # JOIN CUTTER PIECES
+   # --------------------------------------------------------
+   bpy.ops.object.select_all(action='DESELECT')
+   cutter.select_set(True)
+   round_part.select_set(True)
+   bpy.context.view_layer.objects.active = cutter
+   bpy.ops.object.join()
+   cutter = bpy.context.object
+   # --------------------------------------------------------
+   # BOOLEAN DIFFERENCE
+   # --------------------------------------------------------
+   bpy.context.view_layer.objects.active = door_obj
+   modifier = door_obj.modifiers.new(
+       name=handle_name + "_Recess",
+       type='BOOLEAN'
+   )
+   modifier.operation = 'DIFFERENCE'
+   modifier.solver = 'EXACT'
+   modifier.object = cutter
+   bpy.ops.object.modifier_apply(
+       modifier=modifier.name
+   )
+   # --------------------------------------------------------
+   # DELETE CUTTER
+   # --------------------------------------------------------
+   bpy.data.objects.remove(
+       cutter,
+       do_unlink=True
+   )
+# ============================================================
+# 3 SHARED HANDLES
+# ============================================================
+for seam in range(1, MAIN_DOOR_COUNT):
+   # --------------------------------------------------------
+   # X POSITION OF DOOR MEETING LINE
+   # --------------------------------------------------------
+   seam_x = (
+       x1
+       - ROOM1_LENGTH / 2
+       + seam * MAIN_DOOR_WIDTH
+       + (seam - 0.5) * CupBoard_GAP
+   )
+   # --------------------------------------------------------
+   # LEFT DOOR
+   # --------------------------------------------------------
+   left_door_index = seam
+   # --------------------------------------------------------
+   # RIGHT DOOR
+   # --------------------------------------------------------
+   right_door_index = seam + 1
+   # --------------------------------------------------------
+   # HANDLE CENTRE
+   # --------------------------------------------------------
+   handle_x_left = (
+       seam_x - HANDLE_HALF_WIDTH / 2
+   )
+   handle_x_right = (
+       seam_x + HANDLE_HALF_WIDTH / 2
+   )
+   # ========================================================
+   # WHITE SECTION
+   # ========================================================
+   left_white = bpy.data.objects.get(
+       f"CupBoard_MainDoor_{left_door_index}_White"
+   )
+   right_white = bpy.data.objects.get(
+       f"CupBoard_MainDoor_{right_door_index}_White"
+   )
+   cut_handle_into_door(
+       left_white,
+       handle_x_left,
+       f"SharedHandle_{seam}_Left_White",
+       "LEFT"
+   )
+   cut_handle_into_door(
+       right_white,
+       handle_x_right,
+       f"SharedHandle_{seam}_Right_White",
+       "RIGHT"
+   )
+   # ========================================================
+   # TERRACOTTA SECTION
+   # ========================================================
+   left_terracotta = bpy.data.objects.get(
+       f"CupBoard_MainDoor_{left_door_index}_Terracotta"
+   )
+   right_terracotta = bpy.data.objects.get(
+       f"CupBoard_MainDoor_{right_door_index}_Terracotta"
+   )
+   cut_handle_into_door(
+       left_terracotta,
+       handle_x_left,
+       f"SharedHandle_{seam}_Left_Terracotta",
+       "LEFT"
+   )
+   cut_handle_into_door(
+       right_terracotta,
+       handle_x_right,
+       f"SharedHandle_{seam}_Right_Terracotta",
+       "RIGHT"
+   )
+print("3 SHARED RECESSED HANDLES CREATED SUCCESSFULLY.")
+print("Cupboard added successfully.")
+
+# -------------------------------------------------
+# CEILING
+# -------------------------------------------------
+"""create_box(
+   "Ceiling",
+   (ROOM1_LENGTH / 2 + ROOM_GAP / 2, 0, WALL_HEIGHT),
+   (total_width, max_depth, 0.10)
+)"""
+
+"""# -------------------------------------------------
+# CAMERA
+# -------------------------------------------------
+bpy.ops.object.camera_add(
+   location=(8, -8, 6)
+)
+camera = bpy.context.object
+camera.name = "Interior_Camera"
+bpy.context.scene.camera = camera
+"""
+"""# -------------------------------------------------
+# LIGHT
+# -------------------------------------------------
+bpy.ops.object.light_add(
+   type='AREA',
+   location=(2, -2, 2.5)
+)
+light = bpy.context.object
+light.name = "Room_Light"
+light.data.energy = 1000
+light.data.shape = 'RECTANGLE'
+light.data.size = 5
+"""
+# -------------------------------------------------
+# SAVE
+# -------------------------------------------------
+bpy.context.scene.unit_settings.system = 'METRIC'
+print("3D ROOM CREATED SUCCESSFULLY")
+
+test_wall = bpy.data.objects.get("Room1_LeftWall")
+
+if test_wall:
+    test_wall.color = (1.0, 0.0, 0.0, 1.0)
